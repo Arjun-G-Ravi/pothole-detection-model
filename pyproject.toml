@@ -1,0 +1,16 @@
+[project]
+name = "pothole-detection-model"
+version = "0.1.0"
+description = "Local pothole detection, fine-tuning, and dataset viewer"
+readme = "README.md"
+authors = [
+    { name = "Arjun-G-Ravi", email = "arjungravi1@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "huggingface-hub>=2.3.0",
+    "pillow>=13.0.0",
+    "rfdetr[train]>=1.11.2",
+    "torch>=2.2.0",
+    "tqdm>=4.70.1",
+]
