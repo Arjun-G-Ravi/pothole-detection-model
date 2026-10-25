@@ -40,28 +40,35 @@ def load_local_samples():
 
 
 def load_hrp4k_samples():
-    """Download the seeded HRP4K subset, preserving its folders and COCO boxes."""
+    """Reuse the seeded HRP4K subset locally, downloading only missing files."""
     from huggingface_hub import hf_hub_download, snapshot_download
 
-    metadata_path = hf_hub_download(
-        repo_id=HRP4K_REPO,
-        repo_type="dataset",
-        filename="data/images/train/metadata.jsonl",
-        local_dir=str(HRP4K_DIR),
-    )
+    metadata_file = "data/images/train/metadata.jsonl"
+    metadata_path = HRP4K_DIR / metadata_file
+    if not metadata_path.is_file():
+        hf_hub_download(
+            repo_id=HRP4K_REPO,
+            repo_type="dataset",
+            filename=metadata_file,
+            local_dir=str(HRP4K_DIR),
+        )
     with open(metadata_path) as file:
         rows = [json.loads(line) for line in file if line.strip()]
     selected = random.Random(SEED).sample(rows, HRP4K_IMAGES)
     image_files = [f"data/images/train/{row['file_name']}" for row in selected]
-    print(f"Downloading {len(selected)} HRP4K training images to {HRP4K_DIR}...")
-    snapshot = Path(snapshot_download(
-        repo_id=HRP4K_REPO,
-        repo_type="dataset",
-        allow_patterns=image_files,
-        local_dir=str(HRP4K_DIR),
-    ))
+    missing_files = [filename for filename in image_files if not (HRP4K_DIR / filename).is_file()]
+    if missing_files:
+        print(f"Downloading {len(missing_files)} missing HRP4K images to {HRP4K_DIR}...")
+        snapshot_download(
+            repo_id=HRP4K_REPO,
+            repo_type="dataset",
+            allow_patterns=missing_files,
+            local_dir=str(HRP4K_DIR),
+        )
+    else:
+        print(f"Using {len(selected)} HRP4K images already downloaded in {HRP4K_DIR}.")
     return [
-        (snapshot / filename, row["objects"]["bbox"])
+        (HRP4K_DIR / filename, row["objects"]["bbox"])
         for filename, row in zip(image_files, selected)
     ]
 

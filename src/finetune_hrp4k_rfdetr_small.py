@@ -2,6 +2,7 @@
 
 import json
 import shutil
+from datetime import datetime
 
 from pothole_data import (
     DATA_DIR,
@@ -16,8 +17,9 @@ from pothole_data import (
 DATASET_DIR = DATA_DIR / "finetune_hrp4k"
 OUTPUT_DIR = ROOT / "out" / "hrp4k-rfdetr-small-finetuned"
 MODEL_REPO = "dronefreak/hrp4k-rfdetr-small"
-EPOCHS = 30
-BATCH_SIZE = 2
+RESOLUTION = 896
+EPOCHS = 1
+BATCH_SIZE = 4
 GRAD_ACCUM_STEPS = 8
 LEARNING_RATE = 1e-5
 ENCODER_LEARNING_RATE = 1e-6
@@ -60,6 +62,10 @@ def main():
     from huggingface_hub import hf_hub_download
     from rfdetr import RFDETRSmall
 
+    run_dir = OUTPUT_DIR / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
+    run_dir.mkdir(parents=True, exist_ok=False)
+    print(f"Run directory: {run_dir}")
+
     local_train, valid_samples = split_local_samples(load_local_samples())
     hrp4k_samples = load_hrp4k_samples()
 
@@ -70,12 +76,21 @@ def main():
 
     weights = hf_hub_download(repo_id=MODEL_REPO, filename="checkpoint_best_total.pth")
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # Restore the checkpoint's architecture and resolution along with its weights.
-    model = RFDETRSmall.from_checkpoint(weights, device=device)
+    # This checkpoint lost its saved resolution; restore it explicitly.
+    model = RFDETRSmall.from_checkpoint(
+        weights,
+        device=device,
+        resolution=RESOLUTION,
+        freeze_encoder=True,
+    )
+    print("Frozen: DINOv2 visual encoder. Trainable: feature projector, decoder, queries, and detection heads.")
     model.train(
         dataset_dir=str(DATASET_DIR),
-        output_dir=str(OUTPUT_DIR),
+        output_dir=str(run_dir),
+        resolution=RESOLUTION,
+        multi_scale=False,
         epochs=EPOCHS,
+        checkpoint_interval=1,
         batch_size=BATCH_SIZE,
         grad_accum_steps=GRAD_ACCUM_STEPS,
         lr=LEARNING_RATE,
@@ -85,9 +100,10 @@ def main():
         seed=SEED,
         tensorboard=False,
         wandb=False,
+        progress_bar="tqdm",
         run_test=False,
     )
-    print(f"Fine-tuned checkpoints saved to: {OUTPUT_DIR}")
+    print(f"Fine-tuned checkpoints saved to: {run_dir}")
 
 
 if __name__ == "__main__":

@@ -35,15 +35,19 @@ Continues from the HRP4K checkpoint using:
 
 Local labels come from `data/annotations/original_coco.json`. With the current dataset, this is 163 local training images and 41 validation images.
 
-The first run downloads the HRP4K subset into `data/hrp4k_original`, preserving the source layout (`data/images/train/` inside that folder). Prepared COCO splits go into `data/finetune_hrp4k`; checkpoints go into `out/hrp4k-rfdetr-small-finetuned`.
+The first run downloads the HRP4K subset into `data/hrp4k_original`, preserving the source layout (`data/images/train/` inside that folder). Later runs reuse local metadata and images, downloading only missing files. Prepared COCO splits go into `data/finetune_hrp4k`.
 
-Training defaults to 30 epochs, batch size 2, and 8 gradient accumulation steps. Edit the settings at the top of the training script. Dataset size and random seed are in `src/pothole_data.py`.
+Each run saves logs and models in its own timestamped folder under `out/hrp4k-rfdetr-small-finetuned`, printed at startup. A full checkpoint is saved after every epoch (`checkpoint_0.ckpt`, `checkpoint_1.ckpt`, etc., with zero-based epoch numbers), including optimizer state for resuming. The best model is also saved as `checkpoint_best_total.pth`.
 
-To run inference with the fine-tuned checkpoint:
+Training uses fixed **896 × 896** inputs, a tqdm progress bar, batch size 2, and 8 gradient accumulation steps. Edit the epoch count and other settings at the top of the training script. Dataset size and random seed are in `src/pothole_data.py`. The progress bar starts after model initialization and any initial CUDA kernel compilation.
+
+The DINOv2 visual encoder is frozen, including its embeddings, transformer blocks, and normalization layers. The feature projector, detection transformer, object queries, and classification/box heads remain trainable. Set `freeze_encoder=False` in the model constructor to unfreeze the visual encoder.
+
+To run inference with the fine-tuned checkpoint, replace `<run-timestamp>` with your run folder's name:
 
 ```bash
 uv run scripts/inference_hrp4k_rfdetr_small.py \
-  --weights out/hrp4k-rfdetr-small-finetuned/checkpoint_best_total.pth \
+  --weights "out/hrp4k-rfdetr-small-finetuned/<run-timestamp>/checkpoint_best_total.pth" \
   --output-dir out/finetuned-predictions
 ```
 
