@@ -51,6 +51,54 @@ uv run scripts/inference_hrp4k_rfdetr_small.py \
   --output-dir out/finetuned-predictions
 ```
 
+## Evaluate
+
+Set `MODEL_DIR` at the top of `src/evaluate_rfdetr_small.py` to your timestamped training folder. The script finds **every `.pth` and `.ckpt` file** directly inside it and compares each one against the original HRP4K base model. Epoch checkpoints are evaluated in numerical order, followed by the best/EMA checkpoints.
+
+To evaluate only selected checkpoints, set this list in the script:
+
+```python
+CHECKPOINTS = ["checkpoint_0.ckpt", "checkpoint_9.ckpt", "checkpoint_best_total.pth"]
+```
+
+Set `CHECKPOINTS = None` to evaluate all. A list is evaluated in the order provided; the base model is always included. Missing files are reported before evaluation starts.
+
+Control evaluation size with `TRAIN_MY_DATASET_FRACTION`, `TRAIN_HRP_FRACTION`, `VAL_MY_DATASET_FRACTION`, and `VAL_HRP_FRACTION` in the same script: `1.0` uses all images; `0.25` uses roughly 25%, with at least one image. `VALIDATION_SEED` fixes the random subsets for all four splits so every checkpoint and the base model see the same images. HRP4K validation sampling happens before download, so only the selected validation images are fetched. Fractions, seed, and actual image counts are saved with the results. These settings affect evaluation only, not fine-tuning.
+
+```bash
+uv run src/evaluate_rfdetr_small.py
+```
+
+The script compares all models on the same four splits:
+
+| Split | Images |
+| --- | --- |
+| `train_my_dataset` | Selected fraction of the prepared local training split |
+| `val_my_dataset` | Selected fraction of the prepared local validation split |
+| `train_hrp` | Selected fraction of the 2,000 prepared HRP4K training images |
+| `val_hrp` | Selected fraction of HRP4K's official validation split |
+
+It reads `data/finetune_hrp4k` without modifying it. Missing HRP4K validation images are downloaded into `data/hrp4k_original`; existing files are reused.
+
+Reports **mAP50**, **mAP75**, **mAP50–95**, **mAR100**, **precision**, **recall**, and **F1**, all as percentages. For object detection, these replace a misleading single “accuracy” value. All models use 896 × 896 inputs and at most 100 pothole predictions per image. AP uses all prediction confidence levels; precision/recall/F1 use confidence ≥ 0.20 and IoU ≥ 0.50, with one-to-one box matching. Images without potholes still contribute false positives.
+
+Results are saved **inside that model's folder**, under `evaluation/<timestamp>/`:
+
+- `metrics.csv` and `results.json`: each checkpoint's scores on all four splits, including the base model.
+- `curves.csv` and `curves.json`: precision/recall/F1 at confidence thresholds from 0 to 1.
+- `splits.json`: the exact images and target boxes used.
+- `plots/`: metric comparisons, precision–recall curves, confidence curves, detection counts, and training history.
+
+The training-history graph reads the existing `metrics.csv` from the model folder (or Lightning log folders). Its validation scores retain RF-DETR's original threshold selection; the new evaluation uses the fixed thresholds above. The original training logs are preserved. Precision–recall curves are used for detection; a standard ROC curve needs true negatives, which bounding-box detection does not define.
+
+To regenerate graphs from the latest saved evaluation without rerunning inference:
+
+```bash
+uv run src/evaluate_rfdetr_small.py --plots-only
+```
+
+Keep the prepared dataset used by the checkpoint you are evaluating; regenerating it with a different subset changes the comparison. Training scores measure fit to seen data. HRP4K validation was already used to select the base checkpoint, and local validation selects fine-tuned checkpoints, so these are validation comparisons rather than an independent final test.
+
 ## View images
 
 ```bash
@@ -74,6 +122,8 @@ Use `--port` to change the server port. Saved predictions are available for loca
 - `scripts/inference_hrp4k_rfdetr_small.py`: inference and annotated image output.
 - `scripts/view_potholes.py`: localhost viewer.
 - `src/finetune_hrp4k_rfdetr_small.py`: dataset preparation and training.
+- `src/evaluate_rfdetr_small.py`: base versus fine-tuned evaluation.
+- `src/plot_evaluation.py`: graphs from saved evaluation and training metrics.
 - `src/pothole_data.py`: shared dataset paths, selection, and loading.
 - `scripts/Pothole_detection.ipynb`: original Colab notebook.
 

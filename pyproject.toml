@@ -12,5 +12,7 @@ dependencies = [
     "pillow>=13.0.0",
     "rfdetr[train]>=1.11.2",
     "torch>=2.2.0",
+    "torchmetrics[detection]>=1.8.2",
+    "torchvision>=0.17.0",
     "tqdm>=4.70.1",
 ]

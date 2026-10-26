@@ -1646,6 +1646,8 @@ dependencies = [
     { name = "pillow" },
     { name = "rfdetr", extra = ["train"] },
     { name = "torch" },
+    { name = "torchmetrics", extra = ["detection"] },
+    { name = "torchvision" },
     { name = "tqdm" },
 ]
 
@@ -1655,6 +1657,8 @@ requires-dist = [
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "rfdetr", extras = ["train"], specifier = ">=1.11.2" },
     { name = "torch", specifier = ">=2.2.0" },
+    { name = "torchmetrics", extras = ["detection"], specifier = ">=1.8.2" },
+    { name = "torchvision", specifier = ">=0.17.0" },
     { name = "tqdm", specifier = ">=4.70.1" },
 ]
 
