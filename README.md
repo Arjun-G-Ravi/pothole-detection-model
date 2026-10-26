@@ -99,7 +99,25 @@ uv run src/evaluate_rfdetr_small.py --plots-only
 
 Keep the prepared dataset used by the checkpoint you are evaluating; regenerating it with a different subset changes the comparison. Training scores measure fit to seen data. HRP4K validation was already used to select the base checkpoint, and local validation selects fine-tuned checkpoints, so these are validation comparisons rather than an independent final test.
 
-## View images
+## Run a saved model and view predictions
+
+Set `WEIGHTS` at the top of `src/predict_and_view.py` to any saved checkpoint, then run:
+
+```bash
+uv run src/predict_and_view.py
+```
+
+This self-contained script predicts on every image in `data/processed_images`, saves annotated images and `predictions.json` beside the checkpoint in `predictions/<checkpoint>_<timestamp>/`, and starts **http://localhost:8000**. It includes both local training and validation images, without evaluation sampling.
+
+Search filenames, filter images with/without detections, switch to originals, and click to enlarge. Use **← / →** to browse and **Esc** to close. Stop the viewer with **Ctrl+C**.
+
+You can override `--weights`, `--input-dir`, `--confidence`, or `--port`. To reopen previously saved predictions without rerunning the model:
+
+```bash
+uv run src/predict_and_view.py --results-dir "out/hrp4k-rfdetr-small-finetuned/<run-timestamp>/predictions/<prediction-folder>"
+```
+
+## View dataset annotations
 
 ```bash
 uv run scripts/view_potholes.py
@@ -124,6 +142,7 @@ Use `--port` to change the server port. Saved predictions are available for loca
 - `src/finetune_hrp4k_rfdetr_small.py`: dataset preparation and training.
 - `src/evaluate_rfdetr_small.py`: base versus fine-tuned evaluation.
 - `src/plot_evaluation.py`: graphs from saved evaluation and training metrics.
+- `src/predict_and_view.py`: self-contained saved-model inference and localhost viewer.
 - `src/pothole_data.py`: shared dataset paths, selection, and loading.
 - `scripts/Pothole_detection.ipynb`: original Colab notebook.
 
