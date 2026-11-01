@@ -88,7 +88,7 @@ def main():
         f"Training: {len(balanced_local)} local entries ({len(local_train)} unique images)"
         f" + {len(hrp4k_samples)} HRP4K images (50/50 mix)"
     )
-        print(f"Validation: {len(valid_samples)} local images")
+    print(f"Validation: {len(valid_samples)} local images")
 
     weights = hf_hub_download(repo_id=MODEL_REPO, filename="checkpoint_best_total.pth")
     device = "cuda" if torch.cuda.is_available() else "cpu"
