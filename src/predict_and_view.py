@@ -68,7 +68,7 @@ PAGE = """<!doctype html>
   </div>
   <p id="status" role="status">Loading predictions...</p>
 </header>
-<main id="grid"></main>
+<main id="grid"></main>HRP4k
 <dialog id="preview" aria-labelledby="preview-title">
   <header>
     <strong id="preview-title"></strong>

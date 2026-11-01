@@ -99,6 +99,14 @@ uv run src/evaluate_rfdetr_small.py --plots-only
 
 Keep the prepared dataset used by the checkpoint you are evaluating; regenerating it with a different subset changes the comparison. Training scores measure fit to seen data. HRP4K validation was already used to select the base checkpoint, and local validation selects fine-tuned checkpoints, so these are validation comparisons rather than an independent final test.
 
+## One-time graphs for the 25-epoch run
+
+```bash
+uv run scripts/plot_25_epoch_run.py
+```
+
+Saves graphs and their data to `scripts/graphs`: F1/precision/recall and mAP over epochs, losses, learning rates, checkpoint comparisons, precision–recall and confidence curves, FROC, and an image-level ROC comparing the base and best models. ROC inference uses the saved HRP4K validation subset and caches its predictions for later reruns. The ROC measures pothole presence per image; the PR and FROC graphs measure box detection.
+
 ## Run a saved model and view predictions
 
 Set `WEIGHTS` at the top of `src/predict_and_view.py` to any saved checkpoint, then run:
