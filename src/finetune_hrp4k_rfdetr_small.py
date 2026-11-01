@@ -1,6 +1,7 @@
 """Fine-tune RF-DETR Small on local images and a subset of HRP4K."""
 
 import json
+import random
 import shutil
 from datetime import datetime
 
@@ -18,11 +19,22 @@ DATASET_DIR = DATA_DIR / "finetune_hrp4k"
 OUTPUT_DIR = ROOT / "out" / "hrp4k-rfdetr-small-finetuned"
 MODEL_REPO = "dronefreak/hrp4k-rfdetr-small"
 RESOLUTION = 896
-EPOCHS = 25
+EPOCHS = 100
 BATCH_SIZE = 4
 GRAD_ACCUM_STEPS = 8
 LEARNING_RATE = 1e-5
 ENCODER_LEARNING_RATE = 1e-6
+
+
+def balance_local_samples(samples, target_count):
+    """Repeat local training images evenly to match the HRP4K sample count."""
+    if not samples or target_count < len(samples):
+        raise ValueError("Balancing requires local samples and at least one slot per image.")
+    repeats, remainder = divmod(target_count, len(samples))
+    rng = random.Random(SEED)
+    balanced = list(samples) * repeats + rng.sample(samples, remainder)
+    rng.shuffle(balanced)
+    return balanced
 
 
 def write_coco_split(split, samples):
@@ -68,11 +80,15 @@ def main():
 
     local_train, valid_samples = split_local_samples(load_local_samples())
     hrp4k_samples = load_hrp4k_samples()
+    balanced_local = balance_local_samples(local_train, len(hrp4k_samples))
 
-    write_coco_split("train", local_train + hrp4k_samples)
+    write_coco_split("train", balanced_local + hrp4k_samples)
     write_coco_split("valid", valid_samples)
-    print(f"Training: {len(local_train)} local + {len(hrp4k_samples)} HRP4K images")
-    print(f"Validation: {len(valid_samples)} local images")
+    print(
+        f"Training: {len(balanced_local)} local entries ({len(local_train)} unique images)"
+        f" + {len(hrp4k_samples)} HRP4K images (50/50 mix)"
+    )
+        print(f"Validation: {len(valid_samples)} local images")
 
     weights = hf_hub_download(repo_id=MODEL_REPO, filename="checkpoint_best_total.pth")
     device = "cuda" if torch.cuda.is_available() else "cpu"

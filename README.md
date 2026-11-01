@@ -30,16 +30,18 @@ uv run src/finetune_hrp4k_rfdetr_small.py
 
 Continues from the HRP4K checkpoint using:
 
-- Training: 80% of your preprocessed images plus 2,000 HRP4K training images.
+- Training: 80% of your preprocessed images, repeated evenly to give 2,000 local training entries, plus 2,000 HRP4K training images (a 50/50 mix per epoch).
 - Validation: the remaining 20% of your images.
 
 Local labels come from `data/annotations/original_coco.json`, converted from `final_pothole_boxes.json` (203 images and 571 pothole boxes, including one image without potholes). With the current dataset, this is 162 local training images and 41 validation images. COCO boxes use `[x, y, width, height]` and reference `data/processed_images`. The old augmented annotations have been removed.
+
+Each local training image appears 12 or 13 times per epoch; seed 42 determines the extra repeats. Validation images are never repeated or included in training. These are repeated training examples, not additional unique images. Prepared training-set evaluation includes those repetitions.
 
 The first run downloads the HRP4K subset into `data/hrp4k_original`, preserving the source layout (`data/images/train/` inside that folder). Later runs reuse local metadata and images, downloading only missing files. Prepared COCO splits go into `data/finetune_hrp4k`.
 
 Each run saves logs and models in its own timestamped folder under `out/hrp4k-rfdetr-small-finetuned`, printed at startup. A full checkpoint is saved after every epoch (`checkpoint_0.ckpt`, `checkpoint_1.ckpt`, etc., with zero-based epoch numbers), including optimizer state for resuming. The best model is also saved as `checkpoint_best_total.pth`.
 
-Training uses fixed **896 × 896** inputs, a tqdm progress bar, batch size 2, and 8 gradient accumulation steps. Edit the epoch count and other settings at the top of the training script. Dataset size and random seed are in `src/pothole_data.py`. The progress bar starts after model initialization and any initial CUDA kernel compilation.
+Training runs for **100 epochs**, using fixed **896 × 896** inputs, a tqdm progress bar, batch size 4, and 8 gradient accumulation steps. Edit the epoch count and other settings at the top of the training script. Dataset size and random seed are in `src/pothole_data.py`. The progress bar starts after model initialization and any initial CUDA kernel compilation.
 
 The DINOv2 visual encoder is frozen, including its embeddings, transformer blocks, and normalization layers. The feature projector, detection transformer, object queries, and classification/box heads remain trainable. Set `freeze_encoder=False` in the model constructor to unfreeze the visual encoder.
 
