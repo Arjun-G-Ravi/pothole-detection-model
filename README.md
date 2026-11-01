@@ -33,7 +33,7 @@ Continues from the HRP4K checkpoint using:
 - Training: 80% of your preprocessed images plus 2,000 HRP4K training images.
 - Validation: the remaining 20% of your images.
 
-Local labels come from `data/annotations/original_coco.json`. With the current dataset, this is 163 local training images and 41 validation images.
+Local labels come from `data/annotations/original_coco.json`, converted from `final_pothole_boxes.json` (203 images and 571 pothole boxes, including one image without potholes). With the current dataset, this is 162 local training images and 41 validation images. COCO boxes use `[x, y, width, height]` and reference `data/processed_images`. The old augmented annotations have been removed.
 
 The first run downloads the HRP4K subset into `data/hrp4k_original`, preserving the source layout (`data/images/train/` inside that folder). Later runs reuse local metadata and images, downloading only missing files. Prepared COCO splits go into `data/finetune_hrp4k`.
 
