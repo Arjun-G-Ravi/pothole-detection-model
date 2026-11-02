@@ -20,13 +20,11 @@ from plot_evaluation import create_plots
 
 
 # Edit this folder after training.
-MODEL_DIR = ROOT / "out/hrp4k-rfdetr-small-finetuned/2026-10-25_19-56-17_610318"
+MODEL_DIR = ROOT / "out/hrp4k-rfdetr-small-finetuned/2026-11-02_19-28-35_676993"
 
 CHECKPOINTS = [
-    "checkpoint_10.ckpt",
+    "checkpoint_19.ckpt",  # Epoch 20: best validation mAP50-95.
     "checkpoint_20.ckpt",
-    "checkpoint_24.ckpt",
-    "checkpoint_best_total.pth",
 ]
 BASE_WEIGHTS = None  # Optional local base checkpoint; None uses Hugging Face.
 BASE_REPO = "dronefreak/hrp4k-rfdetr-small"
