@@ -4,3 +4,4 @@ out/
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+legacy/

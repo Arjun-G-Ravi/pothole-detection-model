@@ -20,8 +20,8 @@ OUTPUT_DIR = ROOT / "out" / "hrp4k-rfdetr-small-finetuned"
 MODEL_REPO = "dronefreak/hrp4k-rfdetr-small"
 RESOLUTION = 896
 EPOCHS = 100
-BATCH_SIZE = 4
-GRAD_ACCUM_STEPS = 8
+BATCH_SIZE = 32
+GRAD_ACCUM_STEPS = 1
 LEARNING_RATE = 1e-5
 ENCODER_LEARNING_RATE = 1e-6
 
