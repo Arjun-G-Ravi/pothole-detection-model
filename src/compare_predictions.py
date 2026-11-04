@@ -1,8 +1,9 @@
-"""Run saved RF-DETR and YOLO checkpoints and browse their predictions side by side."""
+"""Run saved pothole detectors and browse their predictions side by side."""
 
 import argparse
 import gc
 import json
+import subprocess
 from datetime import datetime
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -23,15 +24,15 @@ CONFIDENCE = 0.30
 RESOLUTION = 896
 PORT = 8000
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-MODEL_NAMES = {"rfdetr": "RF-DETR", "yolo": "YOLO"}
-COLORS = {"rfdetr": "#c53d19", "yolo": "#1262c4"}
+MODEL_NAMES = {"rfdetr": "RF-DETR", "yolo": "YOLO", "dfine": "D-FINE-S", "deimv2": "DEIMv2-S"}
+COLORS = {"rfdetr": "#c53d19", "yolo": "#1262c4", "dfine": "#207944", "deimv2": "#7938a5"}
 
 
 PAGE = """<!doctype html>
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RF-DETR / YOLO predictions</title>
+<title>Pothole model comparison</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0 auto; padding: 24px; max-width: 1800px; background: #f4f5f7;
@@ -55,7 +56,7 @@ PAGE = """<!doctype html>
   li { padding: 3px 0; } #filename { overflow-wrap: anywhere; }
   @media (max-width: 800px) { #panels { grid-template-columns: 1fr; } body { padding: 12px; } }
 </style>
-<h1>RF-DETR / YOLO predictions</h1>
+<h1>Pothole model comparison</h1>
 <p id="summary"></p>
 <div id="splits" role="group" aria-label="Dataset split">
   <button data-split="train" aria-pressed="false"><strong>Training data</strong><span></span></button>
@@ -65,8 +66,8 @@ PAGE = """<!doctype html>
   <input id="search" type="search" placeholder="Search filenames" aria-label="Search filenames">
   <select id="filter" aria-label="Filter predictions">
     <option value="all">All images</option>
-    <option value="positive">Either model detects potholes</option>
-    <option value="negative">Neither model detects potholes</option>
+    <option value="positive">Any model detects potholes</option>
+    <option value="negative">No model detects potholes</option>
     <option value="different">Different detection counts</option>
   </select>
   <label><input id="original" type="checkbox"> Show original</label>
@@ -78,17 +79,25 @@ PAGE = """<!doctype html>
   <span id="position" role="status"></span>
 </div>
 <h3 id="filename"></h3>
-<main id="panels">
-  <article id="rfdetr"><h2>RF-DETR</h2><small></small><p></p>
-    <a target="_blank" rel="noopener"><img alt="RF-DETR predictions"></a><ol></ol></article>
-  <article id="yolo"><h2>YOLO</h2><small></small><p></p>
-    <a target="_blank" rel="noopener"><img alt="YOLO predictions"></a><ol></ol></article>
-</main>
+<main id="panels"></main>
 <p>Use ← / → to browse. Click an image to open it at full size.
 Box numbers match the predictions listed below each image.</p>
 <script id="results" type="application/json">__RESULTS__</script>
 <script>
   const results = JSON.parse(document.querySelector('#results').textContent);
+  const models = Object.keys(results.weights);
+  const modelNames = {rfdetr: 'RF-DETR', yolo: 'YOLO', dfine: 'D-FINE-S', deimv2: 'DEIMv2-S'};
+  const colors = {rfdetr: '#c53d19', yolo: '#1262c4', dfine: '#207944', deimv2: '#7938a5'};
+  for (const model of models) {
+    const panel = document.createElement('article'); panel.id = model;
+    const title = document.createElement('h2'); title.textContent = modelNames[model] || model;
+    title.style.color = colors[model];
+    const link = document.createElement('a'); link.target = '_blank'; link.rel = 'noopener';
+    const image = document.createElement('img'); image.alt = `${title.textContent} predictions`;
+    link.append(image);
+    panel.append(title, document.createElement('small'), document.createElement('p'), link, document.createElement('ol'));
+    document.querySelector('#panels').append(panel);
+  }
   const splitImages = results.images.filter(item => ['train', 'valid'].includes(item.split));
   const search = document.querySelector('#search'), filter = document.querySelector('#filter');
   const original = document.querySelector('#original'), picker = document.querySelector('#image-picker');
@@ -108,7 +117,7 @@ Box numbers match the predictions listed below each image.</p>
     document.querySelector('#filename').textContent = item ? `${splitLabels[item.split]} · ${item.name}` : '';
     document.querySelector('#panels').hidden = !item;
     if (!item) return;
-    for (const model of ['rfdetr', 'yolo']) {
+    for (const model of models) {
       const panel = document.querySelector(`#${model}`), prediction = item[model];
       panel.querySelector('small').textContent = results.weights[model];
       panel.querySelector('p').textContent = `${prediction.detections.length} pothole detections`;
@@ -125,10 +134,11 @@ Box numbers match the predictions listed below each image.</p>
   function applyFilters() {
     const term = search.value.toLowerCase();
     shown = splitImages.filter(item => {
-      const a = item.rfdetr.detections.length, b = item.yolo.detections.length;
+      const counts = models.map(model => item[model].detections.length);
+      const total = counts.reduce((a, b) => a + b, 0);
       return item.split === selectedSplit && item.name.toLowerCase().includes(term) &&
-        (filter.value === 'all' || (filter.value === 'positive' && a + b > 0) ||
-         (filter.value === 'negative' && a + b === 0) || (filter.value === 'different' && a !== b));
+        (filter.value === 'all' || (filter.value === 'positive' && total > 0) ||
+         (filter.value === 'negative' && total === 0) || (filter.value === 'different' && new Set(counts).size > 1));
     });
     for (const button of splitButtons) {
       button.setAttribute('aria-pressed', String(button.dataset.split === selectedSplit));
@@ -262,11 +272,15 @@ def predict(model, kind, image, confidence, device):
 
 
 def run_inference(args, paths):
-    # Validate both dependencies before starting a potentially long inference run.
+    models = getattr(args, "models", None) or ["rfdetr", "yolo"]
+    weights = {kind: str(getattr(args, f"{kind}_weights")) for kind in models}
+    # Only require dependencies for models selected for this comparison.
     try:
         import torch
-        import rfdetr  # noqa: F401
-        import ultralytics  # noqa: F401
+        if "rfdetr" in models:
+            import rfdetr  # noqa: F401
+        if "yolo" in models:
+            import ultralytics  # noqa: F401
     except ImportError as error:
         raise SystemExit(f"Missing inference dependency: {error}. Run `uv sync --locked` first.") from error
 
@@ -275,9 +289,9 @@ def run_inference(args, paths):
         device = "cuda" if torch.cuda.is_available() else "cpu"
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=False)
-    for folder in ("original", *MODEL_NAMES):
+    for folder in ("original", *models):
         (output_dir / folder).mkdir()
-    results = {"weights": {"rfdetr": str(args.rfdetr_weights), "yolo": str(args.yolo_weights)},
+    results = {"weights": weights,
                "input_dir": str(args.input_dir), "confidence": args.confidence,
                "resolution": RESOLUTION, "device": device, "images": []}
     for index, path in enumerate(tqdm(paths, desc="Saving originals", unit="image")):
@@ -287,17 +301,33 @@ def run_inference(args, paths):
                                   "original": f"original/{filename}"})
 
     # Load one model at a time so both checkpoints need not fit in GPU memory together.
-    for kind, name in MODEL_NAMES.items():
+    for kind in models:
+        name = MODEL_NAMES[kind]
         print(f"{name}: {results['weights'][kind]}\nDevice: {device}", flush=True)
-        model = load_model(kind, results["weights"][kind], device)
+        external_predictions = None
+        if kind in ("dfine", "deimv2"):
+            from detr_training import prediction_command
+
+            request_path, output_path = output_dir / f"{kind}_request.json", output_dir / f"{kind}_detections.json"
+            request_path.write_text(json.dumps({"paths": [str(path) for path in paths], "confidence": args.confidence}))
+            subprocess.run(prediction_command(kind, weights[kind], request_path, output_path, device), check=True)
+            external_predictions = json.loads(output_path.read_text())
+            if len(external_predictions) != len(paths):
+                raise ValueError(f"{name} returned predictions for the wrong number of images.")
+        else:
+            model = load_model(kind, results["weights"][kind], device)
         for index, path in enumerate(tqdm(paths, desc=name, unit="image")):
             image = read_image(path)
-            with torch.inference_mode():
-                detections = predict(model, kind, image, args.confidence, device)
+            if external_predictions is None:
+                with torch.inference_mode():
+                    detections = predict(model, kind, image, args.confidence, device)
+            else:
+                detections = external_predictions[index]
             relative = f"{kind}/{index:06d}.jpg"
             annotate(image, detections, COLORS[kind]).save(output_dir / relative, quality=95)
             results["images"][index][kind] = {"image": relative, "detections": detections}
-        del model
+        if external_predictions is None:
+            del model
         gc.collect()
         if device.startswith("cuda"):
             torch.cuda.empty_cache()
@@ -321,6 +351,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rfdetr-weights", type=Path, default=RFDETR_WEIGHTS)
     parser.add_argument("--yolo-weights", type=Path, default=YOLO_WEIGHTS)
+    parser.add_argument("--dfine-weights", type=Path, help="D-FINE-S checkpoint from a prepared training run.")
+    parser.add_argument("--deimv2-weights", type=Path, help="DEIMv2-S checkpoint from a prepared training run.")
+    parser.add_argument("--models", choices=tuple(MODEL_NAMES), nargs="+",
+                        help="Models to compare; default is RF-DETR + YOLO plus any additional checkpoints supplied.")
     parser.add_argument("--input-dir", type=Path, default=INPUT_DIR, help="Image folder, searched recursively.")
     parser.add_argument("--confidence", type=float, default=CONFIDENCE)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
@@ -339,13 +373,32 @@ def main():
             parser.error(f"No saved predictions.json in {results_dir}")
         write_results(results_dir)
     else:
+        args.models = list(dict.fromkeys(args.models or ["rfdetr", "yolo"] +
+                          [kind for kind in ("dfine", "deimv2") if getattr(args, f"{kind}_weights")]))
         if not 0 <= args.confidence <= 1:
             parser.error("--confidence must be between 0 and 1.")
-        for field in ("rfdetr_weights", "yolo_weights", "input_dir", "output_dir"):
+        for kind in args.models:
+            if getattr(args, f"{kind}_weights") is None:
+                parser.error(f"--{kind}-weights is required when selecting {kind}.")
+        for field in (*[f"{kind}_weights" for kind in args.models], "input_dir", "output_dir"):
             setattr(args, field, getattr(args, field).expanduser().resolve())
-        for weights in (args.rfdetr_weights, args.yolo_weights):
+        for weights in (getattr(args, f"{kind}_weights") for kind in args.models):
             if not weights.is_file():
                 parser.error(f"Checkpoint not found: {weights}")
+        for kind in (kind for kind in args.models if kind in ("dfine", "deimv2")):
+            checkpoint = getattr(args, f"{kind}_weights")
+            try:
+                metadata = json.loads((checkpoint.parent / "run.json").read_text())
+                if metadata["kind"] != kind:
+                    parser.error(f"{checkpoint} belongs to {metadata['kind']}, not {kind}.")
+                if not Path(metadata["python"]).is_file():
+                    parser.error(f"Model runtime not found: {metadata['python']}; see docs/additional_models.md.")
+                if not (checkpoint.parent / "resolved_config.yaml").is_file():
+                    parser.error(f"No resolved_config.yaml beside {checkpoint}.")
+            except (OSError, ValueError, KeyError) as error:
+                parser.error(f"Cannot read {kind} training-run metadata: {error}")
+            if args.device == "mps":
+                parser.error("D-FINE/DEIMv2 comparisons support --device auto, cpu, or cuda.")
         if not args.input_dir.is_dir():
             parser.error(f"Image folder not found: {args.input_dir}")
         if args.output_dir.exists():

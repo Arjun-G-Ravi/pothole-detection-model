@@ -135,6 +135,40 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(oriented.size, (200, 100))
             self.assertEqual(oriented.mode, "RGB")
 
+    def test_new_models_predict_in_separate_runtimes_and_pair_by_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            paths = [inputs / "image.jpg"]
+            Image.new("RGB", (200, 100), "white").save(paths[0])
+            args = SimpleNamespace(models=["dfine", "deimv2"], device="cpu", output_dir=root / "results",
+                                   input_dir=inputs, confidence=0.3,
+                                   dfine_weights=root / "dfine/last.pth", deimv2_weights=root / "deim/last.pth")
+            calls = []
+
+            def run_worker(command, check):
+                calls.append(command)
+                output = Path(command[command.index("--output") + 1])
+                output.write_text(json.dumps([[]]))
+
+            def command(kind, checkpoint, request, output, device):
+                return [kind, "--output", str(output)]
+
+            with patch.dict(sys.modules, {"torch": SimpleNamespace()}), \
+                    patch("detr_training.prediction_command", side_effect=command), \
+                    patch.object(viewer.subprocess, "run", side_effect=run_worker), \
+                    patch.object(viewer, "load_model") as load:
+                output = viewer.run_inference(args, paths)
+            load.assert_not_called()
+            self.assertEqual([call[0] for call in calls], ["dfine", "deimv2"])
+            results = json.loads((output / "predictions.json").read_text())
+            self.assertEqual(set(results["weights"]), {"dfine", "deimv2"})
+            for kind in args.models:
+                item = results["images"][0][kind]
+                self.assertEqual(item["detections"], [])
+                self.assertTrue((output / item["image"]).is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

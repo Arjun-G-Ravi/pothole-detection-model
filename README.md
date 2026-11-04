@@ -158,6 +158,21 @@ uv run scripts/plot_25_epoch_run.py
 
 Saves graphs and their data to `scripts/graphs`: F1/precision/recall and mAP over epochs, losses, learning rates, checkpoint comparisons, precision–recall and confidence curves, FROC, and an image-level ROC comparing the base and best models. ROC inference uses the saved HRP4K validation subset and caches its predictions for later reruns. The ROC measures pothole presence per image; the PR and FROC graphs measure box detection.
 
+## Fine-tune D-FINE-S and DEIMv2-S
+
+Both models reuse the exact prepared RF-DETR/YOLO training and validation data.
+See [setup, configuration, checkpoints, and prediction comparison](docs/additional_models.md)
+for their separate official runtimes. After that one-time setup, run:
+
+```bash
+.venv/bin/python src/dfine/finetune_dfine_small.py
+.venv/bin/python src/deimv2/finetune_deimv2_small.py
+```
+
+Add `--prepare-only` to validate data and write configs without installing or
+running the models. Defaults are 100 epochs, 896-pixel inputs, batch size 32,
+and frozen backbones, with timestamped outputs and a checkpoint every epoch.
+
 ## Compare RF-DETR and YOLO predictions
 
 ```bash
@@ -205,6 +220,10 @@ uv run src/compare_predictions.py --results-dir out/model-comparison/<timestamp>
 
 Reopening saved results also updates the viewer and adds missing split labels
 without rerunning either model.
+
+To include D-FINE-S and DEIMv2-S, supply `--dfine-weights` and
+`--deimv2-weights`. Use `--models dfine deimv2` to compare only those models;
+see [examples](docs/additional_models.md#compare-predictions).
 
 ## Run a saved model and view predictions
 
