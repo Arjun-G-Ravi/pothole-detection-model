@@ -5,6 +5,7 @@ import csv
 import gc
 import json
 import random
+import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,8 @@ from PIL import Image
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.ops import box_iou
 from tqdm import tqdm
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pothole_data import DATA_DIR, HRP4K_DIR, HRP4K_REPO, ROOT
 from plot_evaluation import create_plots

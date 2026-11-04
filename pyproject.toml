@@ -15,4 +15,5 @@ dependencies = [
     "torchmetrics[detection]>=1.8.2",
     "torchvision>=0.17.0",
     "tqdm>=4.70.1",
+    "ultralytics>=8.4.0",
 ]

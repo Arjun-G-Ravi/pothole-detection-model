@@ -1,4 +1,4 @@
-"""Plot saved evaluation results alongside the model's existing training logs."""
+"""Plot saved RF-DETR evaluation results alongside existing training logs."""
 
 import csv
 import json

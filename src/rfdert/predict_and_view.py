@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from tqdm import tqdm
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 WEIGHTS = ROOT / "out/hrp4k-rfdetr-small-finetuned/2026-11-02_19-28-35_676993/checkpoint_19.ckpt"
 INPUT_DIR = ROOT / "data/processed_images"
 CONFIDENCE = 0.30

@@ -3,7 +3,11 @@
 import json
 import random
 import shutil
+import sys
 from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pothole_data import (
     DATA_DIR,
