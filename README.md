@@ -173,35 +173,31 @@ Add `--prepare-only` to validate data and write configs without installing or
 running the models. Defaults are 100 epochs, 896-pixel inputs, batch size 32,
 and frozen backbones, with timestamped outputs and a checkpoint every epoch.
 
-## Compare RF-DETR and YOLO predictions
+## Compare all four models
 
-```bash
-uv run src/compare_predictions.py
+```fish
+/home/arjun/ai_env/bin/python src/compare_predictions.py
 ```
 
-Runs both saved models on every image in `data/processed_images` and starts
-**http://localhost:8000**. Each image displays RF-DETR and YOLO predictions side
-by side, with numbered pothole boxes, confidence scores, and box coordinates.
+Runs the saved RF-DETR Small, YOLO26 Small, D-FINE-S, and DEIMv2-S models on
+every image in `data/processed_images` and starts **http://localhost:8000**.
+Each image displays the four predictions in a two-column grid, with numbered
+pothole boxes, confidence scores, and box coordinates.
 Separate **Training data** and **Validation data** boxes show image counts;
 click a box to browse only that split. Membership comes from the prepared
 training dataset, or the shared seeded training split if it has not been prepared.
 Only images belonging to those splits appear in the viewer.
 Use Previous/Next or **← / →** to browse, select an image by filename, search,
-filter by detection counts, or switch to the original. Click either image to
+filter by detection counts, or switch to the original. Click any image to
 open it at full size. Stop the server with **Ctrl+C**.
 
-Edit `RFDETR_WEIGHTS` and `YOLO_WEIGHTS` at the top of the script to choose your
-checkpoints. The defaults are `out/hrp4k-rfdetr-small-finetuned/new/checkpoint_19.ckpt`
-and `out/yolo/1/best.pt`. You can also override them on the command line:
+Edit `RFDETR_WEIGHTS`, `YOLO_WEIGHTS`, `DFINE_WEIGHTS`, and `DEIMV2_WEIGHTS`
+at the top of the script to choose checkpoints. The defaults use the saved best
+RF-DETR EMA checkpoint from November 2, YOLO checkpoint from November 3, and
+D-FINE/DEIMv2 checkpoints from November 4. Input paths, confidence, resolution,
+and port are also configurable at the top of the script.
 
-```bash
-uv run src/compare_predictions.py \
-  --rfdetr-weights out/hrp4k-rfdetr-small-finetuned/new/checkpoint_19.ckpt \
-  --yolo-weights out/yolo/1/best.pt \
-  --confidence 0.30
-```
-
-Both models receive the same original images, a confidence threshold of 0.30,
+All models receive the same original images, a confidence threshold of 0.30,
 and an input size of 896. Only predictions labeled `pothole` are shown; images
 without predictions remain browsable. Models load one at a time to limit GPU
 memory use. CUDA is selected when available, otherwise CPU; use `--device` to
@@ -219,11 +215,10 @@ uv run src/compare_predictions.py --results-dir out/model-comparison/<timestamp>
 ```
 
 Reopening saved results also updates the viewer and adds missing split labels
-without rerunning either model.
+without rerunning inference.
 
-To include D-FINE-S and DEIMv2-S, supply `--dfine-weights` and
-`--deimv2-weights`. Use `--models dfine deimv2` to compare only those models;
-see [examples](docs/additional_models.md#compare-predictions).
+All four models are included by default. Use `--models dfine deimv2` to compare
+only those models; see [examples](docs/additional_models.md#compare-predictions).
 
 ## Run a saved model and view predictions
 
@@ -269,7 +264,7 @@ Use `--port` to change the server port. Saved predictions are available for loca
 - `src/rfdert/evaluate_rfdetr_small.py`: base versus fine-tuned evaluation.
 - `src/rfdert/plot_evaluation.py`: graphs from saved evaluation and training metrics.
 - `src/rfdert/predict_and_view.py`: self-contained saved-model inference and localhost viewer.
-- `src/compare_predictions.py`: side-by-side RF-DETR / YOLO predictions and standalone saved viewer.
+- `src/compare_predictions.py`: four-model prediction comparison and standalone saved viewer.
 - `src/pothole_data.py`: shared dataset paths, selection, and loading.
 - `src/yolo/config.py`: YOLO26 training configuration.
 - `src/yolo/prepare_dataset.py`: local COCO-to-YOLO conversion.

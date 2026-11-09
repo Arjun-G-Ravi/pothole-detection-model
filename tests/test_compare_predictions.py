@@ -25,6 +25,35 @@ def tensor(values):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_default_launch_selects_all_four_models_and_explicit_selection_is_respected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            Image.new("RGB", (20, 20)).save(inputs / "image.jpg")
+            weights = {}
+            for kind in viewer.MODEL_NAMES:
+                run = root / kind
+                run.mkdir()
+                weights[kind] = run / "best.pth"
+                weights[kind].touch()
+                (run / "run.json").write_text(json.dumps({"kind": kind, "python": sys.executable}))
+                (run / "resolved_config.yaml").touch()
+            defaults = {f"{kind.upper()}_WEIGHTS": path for kind, path in weights.items()}
+            for selected in ([], ["--models", "yolo"]):
+                with self.subTest(selected=selected), patch.multiple(viewer, **defaults), \
+                        patch.object(sys, "argv", ["compare_predictions.py", "--input-dir", str(inputs),
+                                                  "--output-dir", str(root / "results"), *selected]), \
+                        patch.object(viewer, "run_inference", return_value=root / "results") as infer, \
+                        patch.object(viewer, "serve_viewer") as serve:
+                    viewer.main()
+                    args, paths = infer.call_args.args
+                    self.assertEqual(args.models, ["yolo"] if selected else list(viewer.MODEL_NAMES))
+                    self.assertEqual(paths, [inputs / "image.jpg"])
+                    for kind in args.models:
+                        self.assertEqual(getattr(args, f"{kind}_weights"), weights[kind])
+                    serve.assert_called_once_with(root / "results", viewer.PORT)
+
     def test_split_membership_uses_prepared_data_and_deduplicates_repeats(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -98,7 +127,7 @@ class ComparisonTests(unittest.TestCase):
             for path, color in zip(paths, ("white", "black")):
                 path.parent.mkdir(parents=True)
                 Image.new("RGB", (200, 100), color).save(path)
-            args = SimpleNamespace(device="cpu", output_dir=root / "results", input_dir=inputs,
+            args = SimpleNamespace(models=["rfdetr", "yolo"], device="cpu", output_dir=root / "results", input_dir=inputs,
                                    confidence=0.3, rfdetr_weights=root / "rf.ckpt",
                                    yolo_weights=root / "yolo.pt")
             detection = {"box_xyxy": [20, 20, 100, 80], "score": 0.75, "label": "pothole"}

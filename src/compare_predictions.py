@@ -17,8 +17,10 @@ from pothole_data import DATA_DIR, split_local_samples
 
 ROOT = Path(__file__).resolve().parents[1]
 # Edit these paths to compare other saved checkpoints.
-RFDETR_WEIGHTS = ROOT / "out/hrp4k-rfdetr-small-finetuned/new/checkpoint_19.ckpt"
-YOLO_WEIGHTS = ROOT / "out/yolo/1/best.pt"
+RFDETR_WEIGHTS = ROOT / "out/hrp4k-rfdetr-small-finetuned/2026-11-02_19-28-35_676993/checkpoint_best_ema.pth"
+YOLO_WEIGHTS = ROOT / "out/yolo26-small-finetuned/2026-11-03_13-25-47_299595/weights/best.pt"
+DFINE_WEIGHTS = ROOT / "out/dfine-small-finetuned/2026-11-04_20-01-02_456706/best_stg1.pth"
+DEIMV2_WEIGHTS = ROOT / "out/deimv2-small-finetuned/2026-11-04_22-01-20_947361/best_stg1.pth"
 INPUT_DIR = ROOT / "data/processed_images"
 CONFIDENCE = 0.30
 RESOLUTION = 896
@@ -272,7 +274,7 @@ def predict(model, kind, image, confidence, device):
 
 
 def run_inference(args, paths):
-    models = getattr(args, "models", None) or ["rfdetr", "yolo"]
+    models = getattr(args, "models", None) or list(MODEL_NAMES)
     weights = {kind: str(getattr(args, f"{kind}_weights")) for kind in models}
     # Only require dependencies for models selected for this comparison.
     try:
@@ -300,7 +302,7 @@ def run_inference(args, paths):
         results["images"].append({"name": path.relative_to(args.input_dir).as_posix(),
                                   "original": f"original/{filename}"})
 
-    # Load one model at a time so both checkpoints need not fit in GPU memory together.
+    # Load one model at a time so all checkpoints need not fit in GPU memory together.
     for kind in models:
         name = MODEL_NAMES[kind]
         print(f"{name}: {results['weights'][kind]}\nDevice: {device}", flush=True)
@@ -351,10 +353,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rfdetr-weights", type=Path, default=RFDETR_WEIGHTS)
     parser.add_argument("--yolo-weights", type=Path, default=YOLO_WEIGHTS)
-    parser.add_argument("--dfine-weights", type=Path, help="D-FINE-S checkpoint from a prepared training run.")
-    parser.add_argument("--deimv2-weights", type=Path, help="DEIMv2-S checkpoint from a prepared training run.")
+    parser.add_argument("--dfine-weights", type=Path, default=DFINE_WEIGHTS,
+                        help="D-FINE-S checkpoint from a prepared training run.")
+    parser.add_argument("--deimv2-weights", type=Path, default=DEIMV2_WEIGHTS,
+                        help="DEIMv2-S checkpoint from a prepared training run.")
     parser.add_argument("--models", choices=tuple(MODEL_NAMES), nargs="+",
-                        help="Models to compare; default is RF-DETR + YOLO plus any additional checkpoints supplied.")
+                        help="Models to compare; defaults to all four saved models.")
     parser.add_argument("--input-dir", type=Path, default=INPUT_DIR, help="Image folder, searched recursively.")
     parser.add_argument("--confidence", type=float, default=CONFIDENCE)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
@@ -363,7 +367,7 @@ def main():
                         help="New folder for images, predictions.json, and index.html.")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--no-serve", action="store_true", help="Save results without starting the HTTP viewer.")
-    parser.add_argument("--results-dir", type=Path, help="Reopen saved results without loading either model.")
+    parser.add_argument("--results-dir", type=Path, help="Reopen saved results without loading models.")
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("--port must be between 0 and 65535.")
@@ -373,8 +377,7 @@ def main():
             parser.error(f"No saved predictions.json in {results_dir}")
         write_results(results_dir)
     else:
-        args.models = list(dict.fromkeys(args.models or ["rfdetr", "yolo"] +
-                          [kind for kind in ("dfine", "deimv2") if getattr(args, f"{kind}_weights")]))
+        args.models = list(dict.fromkeys(args.models or MODEL_NAMES))
         if not 0 <= args.confidence <= 1:
             parser.error("--confidence must be between 0 and 1.")
         for kind in args.models:

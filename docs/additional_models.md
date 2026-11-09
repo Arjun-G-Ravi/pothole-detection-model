@@ -134,13 +134,14 @@ dataset available for inference and resuming.
 
 ## Compare predictions
 
-To compare all four models, supply the additional saved checkpoints to the existing viewer:
+The viewer defaults to the saved best checkpoints for all four models:
 
-```bash
-.venv/bin/python src/compare_predictions.py \
-  --dfine-weights out/dfine-small-finetuned/<timestamp>/best_stg1.pth \
-  --deimv2-weights out/deimv2-small-finetuned/<timestamp>/best_stg1.pth
+```fish
+/home/arjun/ai_env/bin/python src/compare_predictions.py
 ```
+
+Edit the four weight paths at the top of `src/compare_predictions.py` to select
+different checkpoints.
 
 To compare only the two new models:
 
