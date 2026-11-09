@@ -2,12 +2,14 @@
 torch==2.5.1
 torchvision==0.20.1
 faster-coco-eval>=1.6.7
+pycocotools
 PyYAML
 tensorboard
 scipy
 calflops
 transformers
 loguru
+matplotlib
 timm
 opencv-python
 pillow

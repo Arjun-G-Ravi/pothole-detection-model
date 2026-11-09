@@ -67,6 +67,8 @@ def keep_backbone_in_eval(model, inputs):
 def replace_scheduler_config(cfg, requested):
     # Upstream recursively merges dictionaries; changing scheduler type must replace its arguments too.
     cfg.yaml_cfg["lr_scheduler"] = copy.deepcopy(requested["lr_scheduler"])
+    # PyYAML reads JSON scientific notation such as 5e-06 as a string.
+    cfg.yaml_cfg["lr_scheduler"]["eta_min"] = float(cfg.yaml_cfg["lr_scheduler"]["eta_min"])
 
 
 def export_metrics(run_dir):

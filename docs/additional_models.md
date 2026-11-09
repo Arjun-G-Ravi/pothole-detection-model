@@ -17,6 +17,19 @@ public source ZIPs in your browser and extract them to these directories
 - [DEIMv2 ZIP](https://github.com/Intellindust-AI-Lab/DEIMv2/archive/refs/heads/main.zip)
   → `out/vendor/DEIMv2/`
 
+Installing `src/detr_requirements.txt` only installs Python dependencies; it does
+not download either model's source code. If these directories contain only
+`.venv/`, extract the source ZIPs into them while preserving `.venv/`. Move the
+contents of `D-FINE-master/` or `DEIMv2-main/` directly into the corresponding
+directory, rather than nesting the extracted folder. Check that these files exist:
+
+```text
+out/vendor/D-FINE/configs/dfine/dfine_hgnetv2_s_coco.yml
+out/vendor/D-FINE/src/core/yaml_config.py
+out/vendor/DEIMv2/configs/deimv2/deimv2_dinov3_s_coco.yml
+out/vendor/DEIMv2/engine/core/yaml_config.py
+```
+
 The [D-FINE](https://github.com/Peterande/D-FINE) and
 [DEIMv2](https://github.com/Intellindust-AI-Lab/DEIMv2) implementations provide
 their architectures, losses, trainers, and evaluators. They are not installed
@@ -36,6 +49,12 @@ uv pip install --python out/vendor/DEIMv2/.venv/bin/python -r src/detr_requireme
 These are setup commands for you to run. The scripts never install dependencies
 or fetch source repositories. Paths and runtime executables are editable in
 `src/dfine/config.py` and `src/deimv2/config.py`.
+If you already created the environments, rerun only the corresponding
+`uv pip install` command to pick up requirements changes. D-FINE's validator
+requires `matplotlib`, and its torchvision dataset base class imports
+`pycocotools`; both are included in `src/detr_requirements.txt`.
+Launching with the project's `.venv/bin/python` is intentional: the launcher
+starts the worker using the separate `PYTHON` configured for that model.
 
 ## Prepare or train
 

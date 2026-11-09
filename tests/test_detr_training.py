@@ -6,10 +6,11 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from detr_training import build_config, prediction_command, prepare_annotations
+from detr_training import MODEL_CONFIGS, build_config, launch_training, prediction_command, prepare_annotations
 from detr_worker import checkpoint_state, matching_state, prediction_rows, replace_scheduler_config
 
 
@@ -78,7 +79,75 @@ class DatasetTests(unittest.TestCase):
             self.assertEqual(cfg["train_dataloader"]["dataset"]["transforms"]["policy"]["name"], "default")
 
 
+class RuntimeTests(unittest.TestCase):
+    def test_missing_source_is_distinguished_from_missing_python(self):
+        for kind in MODEL_CONFIGS:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                repo = root / "vendor"
+                python = repo / ".venv/bin/python"
+                python.parent.mkdir(parents=True)
+                python.touch()
+                settings = SimpleNamespace(
+                    EPOCHS=100, RESOLUTION=896, BATCH_SIZE=32, WORKERS=2,
+                    LEARNING_RATE=2e-4, FREEZE_BACKBONE=True, SEED=42,
+                    REPO_DIR=repo, PYTHON=python, OUTPUT_DIR=root / "runs",
+                    SOURCE_DATASET=DatasetTests().make_dataset(root),
+                )
+                with patch.object(sys, "argv", ["finetune.py"]), patch("detr_training.subprocess.run") as run:
+                    with self.assertRaises(SystemExit) as error:
+                        launch_training(kind, settings)
+                    self.assertIn(str(repo / MODEL_CONFIGS[kind]), str(error.exception))
+                    self.assertIn("only installs dependencies", str(error.exception))
+                    run.assert_not_called()
+
+                model_config = repo / MODEL_CONFIGS[kind]
+                model_config.parent.mkdir(parents=True)
+                model_config.touch()
+                python.unlink()
+                with patch.object(sys, "argv", ["finetune.py"]), patch("detr_training.subprocess.run") as run:
+                    with self.assertRaises(SystemExit) as error:
+                        launch_training(kind, settings)
+                    self.assertIn(f"Python executable is missing: {python}", str(error.exception))
+                    run.assert_not_called()
+
+                python.touch()
+                with patch.object(sys, "argv", ["finetune.py"]), patch("detr_training.subprocess.run") as run:
+                    launch_training(kind, settings)
+                    self.assertEqual(run.call_args.args[0][0], str(python))
+                    self.assertEqual(run.call_args.kwargs["cwd"], repo)
+
+
 class CheckpointTests(unittest.TestCase):
+    def test_scheduler_steps_after_json_yaml_loading_and_resume(self):
+        import torch
+        import yaml
+
+        for eta_min in (5e-6, 2e-6):
+            with self.subTest(eta_min=eta_min):
+                # Preparation writes JSON, which the worker reads using PyYAML.
+                requested = yaml.safe_load(json.dumps({"lr_scheduler": {
+                    "type": "CosineAnnealingLR", "T_max": 100, "eta_min": eta_min,
+                }}))
+                for resumed in (False, True):
+                    if resumed:
+                        requested = yaml.safe_load(yaml.safe_dump(cfg.yaml_cfg))
+                    cfg = SimpleNamespace(yaml_cfg={})
+                    replace_scheduler_config(cfg, requested)
+                    arguments = dict(cfg.yaml_cfg["lr_scheduler"])
+                    arguments.pop("type")
+                    parameter = torch.nn.Parameter(torch.zeros(1))
+                    optimizer = torch.optim.AdamW([parameter], lr=5e-4)
+                    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **arguments)
+                    for _ in range(2):
+                        parameter.sum().backward()
+                        optimizer.step()
+                        optimizer.zero_grad()
+                        scheduler.step()
+                    self.assertIsInstance(scheduler.eta_min, float)
+                    self.assertEqual(scheduler.eta_min, eta_min)
+                    self.assertLess(optimizer.param_groups[0]["lr"], 5e-4)
+
     def test_changed_scheduler_type_does_not_keep_inherited_arguments(self):
         import torch
 

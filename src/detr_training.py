@@ -157,9 +157,18 @@ def launch_training(kind, settings):
     if args.prepare_only:
         return
     python, repo = Path(metadata["python"]), Path(metadata["repo_dir"])
-    if not python.is_file() or not (repo / MODEL_CONFIGS[kind]).is_file():
-        raise SystemExit("Model runtime is not installed. Follow docs/additional_models.md, then rerun. "
-                         "Preparation is complete; no model was downloaded or trained.")
+    model_config = repo / MODEL_CONFIGS[kind]
+    if not model_config.is_file():
+        raise SystemExit(f"Official {kind} source code is missing: {model_config}\n"
+                         "Installing src/detr_requirements.txt only installs dependencies. "
+                         f"Extract the official source ZIP into {repo}, preserving .venv/; "
+                         "configs/ must be directly inside that directory. "
+                         "See docs/additional_models.md. No model was downloaded or trained.")
+    if not python.is_file():
+        raise SystemExit(f"Python executable is missing: {python}\n"
+                         "Set PYTHON in the model's config.py to its installed environment, "
+                         "or follow docs/additional_models.md to create it and install dependencies. "
+                         "No model was downloaded or trained.")
     command = [str(python), str(ROOT / "src/detr_worker.py"), "train", "--run-dir", str(run_dir),
                "--device", args.device]
     if args.resume:
